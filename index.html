@@ -339,6 +339,14 @@
     { key: 'silks',  label: 'Aerial Silks' },
   ];
 
+  // Google Docs, Sheets, Slides and Drive files open in Google's read-only viewer ("/preview").
+  // The normal editor has Google's own menus and a back arrow to the viewer's personal Drive,
+  // which made staff land in their Drive file list. Forms and other links are left as they are.
+  function viewUrl(url) {
+    const m = String(url || '').match(/^https:\/\/(docs\.google\.com\/(?:document|spreadsheets|presentation)|drive\.google\.com\/file)\/d\/([A-Za-z0-9_-]+)/);
+    return m ? `https://${m[1]}/d/${m[2]}/preview` : url;
+  }
+
   // ============================================================
 
   const statusEl = document.getElementById('status');
@@ -414,7 +422,7 @@
       items.forEach(item => {
         const icon = item.icon || '📄';
         const label = item.label || 'Untitled';
-        const url = item.url || '#';
+        const url = viewUrl(item.url || '#');
         html += `<a class="link-card" href="${escapeAttr(url)}" target="_blank" rel="noopener">
           <span class="link-icon" aria-hidden="true">${escapeHtml(icon)}</span>
           <span class="link-label">${escapeHtml(label)}</span>
@@ -427,7 +435,7 @@
     if (grouped['_other'] && grouped['_other'].length) {
       html += `<section class="category"><div class="category-head"><h2 class="category-title">Other</h2><span class="category-count">${grouped['_other'].length}</span></div><div class="links">`;
       grouped['_other'].forEach(item => {
-        html += `<a class="link-card" href="${escapeAttr(item.url||'#')}" target="_blank" rel="noopener">
+        html += `<a class="link-card" href="${escapeAttr(viewUrl(item.url||'#'))}" target="_blank" rel="noopener">
           <span class="link-icon">${escapeHtml(item.icon||'📄')}</span>
           <span class="link-label">${escapeHtml(item.label||'Untitled')}</span>
         </a>`;
