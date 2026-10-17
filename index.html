@@ -86,6 +86,13 @@
   }
   .hub-link:hover, .hub-link:focus-visible { background: var(--accent); color: #fff; }
 
+  .viewer { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; background: var(--bg, #fff); }
+  .viewer[hidden] { display: none; }
+  .viewer-bar { display: flex; align-items: center; gap: 12px; padding: 10px 16px; padding-top: max(10px, env(safe-area-inset-top)); border-bottom: 1px solid rgba(0,0,0,.1); background: var(--bg, #fff); }
+  .viewer-close { font: 600 15px 'DM Sans', sans-serif; color: #fff; background: var(--accent); border: 0; border-radius: 999px; padding: 8px 16px; cursor: pointer; flex: none; }
+  .viewer-title { font: 600 15px 'DM Sans', sans-serif; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .viewer-frame { flex: 1; width: 100%; border: 0; background: #fff; }
+
   .logo {
     display: block;
     width: auto;
@@ -335,6 +342,14 @@
   </footer>
 </div>
 
+<div id="viewer" class="viewer" hidden role="dialog" aria-modal="true" aria-labelledby="viewer-title">
+  <div class="viewer-bar">
+    <button type="button" id="viewer-close" class="viewer-close">← Back to staff info</button>
+    <span id="viewer-title" class="viewer-title"></span>
+  </div>
+  <iframe id="viewer-frame" class="viewer-frame" title="Document" src="about:blank" allow="autoplay; fullscreen"></iframe>
+</div>
+
 <script>
   // ====================================================================
   // CONFIG — Paste your published Google Sheet CSV URL here.
@@ -363,6 +378,7 @@
     const m = String(url || '').match(/^https:\/\/(docs\.google\.com\/(?:document|spreadsheets|presentation)|drive\.google\.com\/file)\/d\/([A-Za-z0-9_-]+)/);
     return m ? `https://${m[1]}/d/${m[2]}/preview` : url;
   }
+  const isViewerUrl = (u) => /\/preview$/.test(u) && /^https:\/\/(docs|drive)\.google\.com\//.test(u);
 
   // ============================================================
 
@@ -440,7 +456,7 @@
         const icon = item.icon || '📄';
         const label = item.label || 'Untitled';
         const url = viewUrl(item.url || '#');
-        html += `<a class="link-card" href="${escapeAttr(url)}" target="_blank" rel="noopener">
+        html += `<a class="link-card" href="${escapeAttr(url)}" target="_blank" rel="noopener"${isViewerUrl(url) ? ' data-viewer="1"' : ''}>
           <span class="link-icon" aria-hidden="true">${escapeHtml(icon)}</span>
           <span class="link-label">${escapeHtml(label)}</span>
           <svg class="link-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
@@ -452,7 +468,8 @@
     if (grouped['_other'] && grouped['_other'].length) {
       html += `<section class="category"><div class="category-head"><h2 class="category-title">Other</h2><span class="category-count">${grouped['_other'].length}</span></div><div class="links">`;
       grouped['_other'].forEach(item => {
-        html += `<a class="link-card" href="${escapeAttr(viewUrl(item.url||'#'))}" target="_blank" rel="noopener">
+        const u2 = viewUrl(item.url||'#');
+        html += `<a class="link-card" href="${escapeAttr(u2)}" target="_blank" rel="noopener"${isViewerUrl(u2) ? ' data-viewer="1"' : ''}>
           <span class="link-icon">${escapeHtml(item.icon||'📄')}</span>
           <span class="link-label">${escapeHtml(item.label||'Untitled')}</span>
         </a>`;
@@ -481,6 +498,37 @@
   }
 
   searchEl.addEventListener('input', applyFilter);
+
+  // Built-in viewer: Google Docs, Sheets, Slides and Drive files open inside this page.
+  // Opening docs.google.com directly lets the Google Docs app take over on phones, and its back
+  // arrow goes to the Drive of whoever is signed in on that phone. Inside the page there is no
+  // Google app and no Drive button, just "Back to staff info".
+  const viewer = document.getElementById('viewer');
+  const viewerFrame = document.getElementById('viewer-frame');
+  const viewerTitle = document.getElementById('viewer-title');
+  function openViewer(url, title) {
+    viewerTitle.textContent = title || '';
+    viewerFrame.src = url;
+    viewer.hidden = false;
+    document.body.style.overflow = 'hidden';
+    try { history.pushState({ viewer: true }, ''); } catch (e) {}
+  }
+  function closeViewer(fromHistory) {
+    if (viewer.hidden) return;
+    viewer.hidden = true;
+    viewerFrame.src = 'about:blank';
+    document.body.style.overflow = '';
+    if (!fromHistory) { try { history.back(); } catch (e) {} }
+  }
+  contentEl.addEventListener('click', (e) => {
+    const a = e.target.closest('a[data-viewer]');
+    if (!a || e.metaKey || e.ctrlKey || e.shiftKey) return;
+    e.preventDefault();
+    openViewer(a.href, a.querySelector('.link-label')?.textContent);
+  });
+  document.getElementById('viewer-close').addEventListener('click', () => closeViewer(false));
+  window.addEventListener('popstate', () => closeViewer(true));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeViewer(false); });
 
   async function load() {
     if (SHEET_CSV_URL === "PASTE_YOUR_PUBLISHED_CSV_URL_HERE") {
